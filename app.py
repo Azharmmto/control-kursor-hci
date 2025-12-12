@@ -1,9 +1,10 @@
 """
-Hand Tracking Mouse & Volume Control (FINAL STABLE VERSION)
+Hand Tracking Mouse & Volume Control (FINAL ADJUSTED)
 Fitur: 
 1. Mouse: Jari Telunjuk (Tangan Terbuka)
 2. Klik: Rapatkan Telunjuk & Tengah
 3. Volume: Hanya aktif jika Jari Kelingking DITEKUK (Safety Lock)
+   -> Volume Up sekarang lebih mudah (jarak jari lebih dekat)
 
 Author: Senior Python CV Engineer
 """
@@ -21,22 +22,19 @@ pyautogui.FAILSAFE = False
 
 class HandTrackingController:
     def __init__(self, camera_index=2):
-        # 1. Setup Kamera
-        print(f"Mencoba koneksi kamera index {camera_index}...")
+        # 1. Setup Kamera (Sesuai Pilihan User)
+        print(f"Mencoba membuka kamera pada Index: {camera_index} ...")
         self.cap = cv2.VideoCapture(camera_index)
         
-        # Auto-switch logic
+        # Cek apakah kamera berhasil dibuka
         if not self.cap.isOpened() or not self.cap.read()[0]:
-            print(f"Index {camera_index} gagal. Mencoba mencari kamera lain...")
-            for i in range(3):
-                if i == camera_index: continue
-                temp_cap = cv2.VideoCapture(i)
-                if temp_cap.isOpened() and temp_cap.read()[0]:
-                    print(f"✅ Kamera ditemukan pada Index: {i}")
-                    self.cap = temp_cap
-                    break
-                temp_cap.release()
+            print(f"❌ Gagal membuka kamera index {camera_index}!")
+            print("Mencoba fallback ke kamera laptop (Index 0)...")
+            self.cap = cv2.VideoCapture(0)
         
+        if not self.cap.isOpened():
+            raise Exception("Tidak ada kamera yang terdeteksi! Pastikan DroidCam aktif.")
+
         self.cap.set(3, 640)
         self.cap.set(4, 480)
 
@@ -54,20 +52,22 @@ class HandTrackingController:
         self.screen_width, self.screen_height = pyautogui.size()
         self.frame_reduction = 100 
         
-        # --- TUNING VARIABLES ---
-        self.smooth_factor = 5      # 5 = Cukup responsif, tidak terlalu lambat
-        self.dead_zone = 3          # Mengurangi getaran kursor
+        # --- TUNING VARIABLES (YANG DIUBAH) ---
+        self.smooth_factor = 5      
+        self.dead_zone = 3          
         
-        self.click_threshold = 30   # Jarak klik (Telunjuk + Tengah)
-        self.vol_up_thresh = 110    # Harus merentang lebar untuk Volume Up
-        self.vol_down_thresh = 30   # Harus mencubit rapat untuk Volume Down
+        self.click_threshold = 30   
+        
+        # REVISI SENSITIVITAS VOLUME:
+        self.vol_up_thresh = 70     # DITURUNKAN (Sebelumnya 110). Cukup rentang sedikit untuk UP.
+        self.vol_down_thresh = 30   # Tetap 30 (Cubit rapat untuk DOWN).
         
         # State Variables
         self.prev_x, self.prev_y = 0, 0
         self.click_time = 0
         self.vol_time = 0     
         self.click_cooldown = 0.5
-        self.vol_cooldown = 0.15    # Sedikit diperlambat agar tidak terlalu sensitif
+        self.vol_cooldown = 0.15    
         
         # Finger Indices
         self.THUMB_TIP = 4
@@ -75,7 +75,7 @@ class HandTrackingController:
         self.MIDDLE_TIP = 12
         self.RING_TIP = 16
         self.PINKY_TIP = 20
-        self.PINKY_MCP = 17 # Pangkal jari kelingking
+        self.PINKY_MCP = 17 
         
         self.prev_time = 0
 
@@ -108,18 +108,13 @@ class HandTrackingController:
 
     def is_pinky_folded(self, landmarks):
         """
-        Cek apakah jari kelingking ditekuk.
-        Jika Ujung Kelingking (20) posisinya lebih bawah dari Pangkal Kelingking (17),
-        berarti jari ditekuk (Koordinat Y makin ke bawah makin besar).
+        Cek apakah jari kelingking ditekuk (Mode Volume Trigger).
         """
         pinky_tip = landmarks[self.PINKY_TIP]
         pinky_mcp = landmarks[self.PINKY_MCP]
-        
-        # Logika: Jika Tip.Y > MCP.Y berarti ujung jari ada di bawah pangkal jari (Menekuk)
         return pinky_tip.y > pinky_mcp.y
 
     def process_hand(self, landmarks, img_h, img_w, img):
-        # Ambil koordinat penting
         index_tip = landmarks[self.INDEX_TIP]
         thumb_tip = landmarks[self.THUMB_TIP]
         middle_tip = landmarks[self.MIDDLE_TIP]
@@ -129,41 +124,36 @@ class HandTrackingController:
         mx, my = int(middle_tip.x * img_w), int(middle_tip.y * img_h)
 
         # --- 1. MODE CHECKER ---
-        # Cek apakah jari kelingking ditekuk?
         volume_mode_active = self.is_pinky_folded(landmarks)
 
-        # --- 2. MOUSE MOVEMENT (Selalu Aktif) ---
-        # Visualisasi jari telunjuk
+        # --- 2. MOUSE MOVEMENT ---
         cv2.circle(img, (ix, iy), 8, (255, 0, 255), cv2.FILLED)
         self.move_mouse_smooth(ix, iy)
         
-        # --- 3. CLICK DETECTION (Telunjuk + Tengah Rapat) ---
+        # --- 3. CLICK DETECTION ---
         click_dist = self.calculate_distance((ix, iy), (mx, my))
         
         if click_dist < self.click_threshold:
-            # Visualisasi Klik
             cv2.circle(img, (ix, iy), 15, (0, 0, 255), cv2.FILLED)
             cv2.putText(img, "CLICK", (ix, iy-30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
             
             if (time.time() - self.click_time) > self.click_cooldown:
                 pyautogui.click()
                 self.click_time = time.time()
-                
-            # SAFETY: Jika sedang klik, jangan jalankan volume
             return 
 
-        # --- 4. VOLUME CONTROL (Hanya jika Kelingking Ditekuk) ---
+        # --- 4. VOLUME CONTROL (Syarat: Kelingking Ditekuk) ---
         if volume_mode_active:
-            # Tampilkan Indikator Mode Volume Aktif
             cv2.putText(img, "MODE: VOLUME (Active)", (10, 450), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             
-            # Hitung Jarak Jempol - Telunjuk
             vol_dist = self.calculate_distance((tx, ty), (ix, iy))
             
-            # Gambar Garis Penghubung
             cx, cy = (tx + ix) // 2, (ty + iy) // 2
             cv2.line(img, (tx, ty), (ix, iy), (0, 255, 0), 2)
-            cv2.putText(img, f"Dist: {int(vol_dist)}", (cx, cy+30), cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255), 1)
+            
+            # Tampilkan jarak saat ini vs Threshold UP
+            info_text = f"Dist: {int(vol_dist)} | Up > {self.vol_up_thresh}"
+            cv2.putText(img, info_text, (cx - 50, cy + 40), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 255), 1)
 
             curr_time = time.time()
             if (curr_time - self.vol_time) > self.vol_cooldown:
@@ -172,21 +162,17 @@ class HandTrackingController:
                     pyautogui.press('volumedown')
                     self.vol_time = curr_time
                     
-                elif vol_dist > self.vol_up_thresh: # Rentang
+                elif vol_dist > self.vol_up_thresh: # Rentang (Sekarang lebih mudah)
                     cv2.circle(img, (cx, cy), 10, (255, 0, 0), cv2.FILLED)
                     pyautogui.press('volumeup')
                     self.vol_time = curr_time
         else:
-            # Jika mode Mouse biasa (Kelingking Lurus)
             cv2.putText(img, "MODE: MOUSE (Vol Locked)", (10, 450), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
     def run(self):
         print("\n=== SYSTEM STARTED ===")
-        print("ATURAN BARU:")
-        print("1. Mouse & Klik: Gunakan tangan terbuka biasa.")
-        print("2. Volume: TEKUK Jari Kelingking & Manis (Pose Pistol/L).")
-        print("   -> Volume terkunci jika kelingking lurus.")
-        print("Tekan 'q' untuk keluar.")
+        print("Set kamera: Custom User Selection")
+        print(f"Volume Up Threshold: {self.vol_up_thresh} pixels (Mudah)")
         
         while True:
             success, img = self.cap.read()
@@ -206,7 +192,6 @@ class HandTrackingController:
                     self.mp_draw.draw_landmarks(img, hand_landmarks, self.mp_hands.HAND_CONNECTIONS)
                     self.process_hand(hand_landmarks.landmark, img_h, img_w, img)
             
-            # FPS
             c_time = time.time()
             fps = 1 / (c_time - self.prev_time) if c_time > self.prev_time else 0
             self.prev_time = c_time
@@ -219,4 +204,7 @@ class HandTrackingController:
         cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    HandTrackingController(camera_index=2).run()
+    
+    CAMERA_TARGET = 2  
+    
+    HandTrackingController(camera_index=CAMERA_TARGET).run()
