@@ -1,5 +1,6 @@
 {
   "workbench.colorTheme": "Monokai",
+  "workbench.iconTheme": "material-icon-theme",
   "python.testing.unittestArgs": [
     "-v",
     "-s",
