@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alat Penguji Interaksi App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Animasi Ripple untuk Klik */
+        .ripple {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.6);
+            transform: scale(0);
+            animation: ripple-animation 0.6s linear;
+            pointer-events: none;
+        }
+
+        @keyframes ripple-animation {
+            to {
+                transform: scale(4);
+                opacity: 0;
+            }
+        }
+
+        /* Animasi Scroll Indicator */
+        .scroll-active {
+            box-shadow: inset 0 0 20px rgba(59, 130, 246, 0.5);
+            border-color: #3b82f6;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1f2937; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4b5563; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6b7280; 
+        }
+
+        /* Animasi Volume Pop */
+        .volume-pop {
+            animation: pop 0.2s ease-out;
+        }
+        @keyframes pop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white font-sans antialiased min-h-screen flex flex-col items-center p-4">
+
+    <!-- Header -->
+    <header class="w-full max-w-md text-center mb-6">
+        <h1 class="text-2xl font-bold text-blue-400">Event Tester</h1>
+        <p class="text-gray-400 text-sm">Uji interaksi: Klik, Volume, & Scroll</p>
+    </header>
+
+    <!-- Main Container -->
+    <main class="w-full max-w-md space-y-6">
+
+        <!-- 1. UJI KLIK -->
+        <section class="bg-gray-800 rounded-xl p-4 shadow-lg border border-gray-700">
+            <h2 class="text-lg font-semibold mb-3 flex items-center">
+                <span class="bg-blue-600 w-2 h-6 mr-2 rounded"></span> 1. Uji Klik (Tap)
+            </h2>
+            <button id="clickArea" class="relative w-full h-24 bg-gradient-to-r from-blue-600 to-blue-800 rounded-lg shadow-md hover:from-blue-500 hover:to-blue-700 active:scale-95 transition-transform duration-100 flex items-center justify-center overflow-hidden group">
+                <span class="text-xl font-bold pointer-events-none group-hover:text-white transition-colors">KETUK DI SINI</span>
+                <!-- Ripple container akan ditambahkan via JS -->
+            </button>
+            <div id="clickStatus" class="mt-2 text-center text-xs text-gray-400 h-4">Menunggu input...</div>
+        </section>
+
+        <!-- 2. UJI VOLUME -->
+        <section class="bg-gray-800 rounded-xl p-4 shadow-lg border border-gray-700 relative overflow-hidden">
+            <h2 class="text-lg font-semibold mb-3 flex items-center">
+                <span class="bg-green-600 w-2 h-6 mr-2 rounded"></span> 2. Uji Volume
+            </h2>
+            
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-sm text-gray-300">Indikator Visual</span>
+                <span id="volPercent" class="text-sm font-mono text-green-400">50%</span>
+            </div>
+
+            <!-- Volume Bar -->
+            <div class="w-full h-6 bg-gray-700 rounded-full overflow-hidden relative">
+                <div id="volumeBar" class="h-full bg-green-500 transition-all duration-200 ease-out" style="width: 50%"></div>
+            </div>
+
+            <p class="text-xs text-gray-500 mt-3">
+                Tekan tombol fisik Volume Up/Down (pada beberapa webview) atau tombol Panah Atas/Bawah keyboard.
+            </p>
+
+            <!-- Tombol Simulasi untuk di Layar -->
+            <div class="grid grid-cols-2 gap-4 mt-4">
+                <button onclick="simulateVolume('down')" class="bg-gray-700 hover:bg-gray-600 p-2 rounded text-sm active:bg-gray-500">Vol -</button>
+                <button onclick="simulateVolume('up')" class="bg-gray-700 hover:bg-gray-600 p-2 rounded text-sm active:bg-gray-500">Vol +</button>
+            </div>
+        </section>
+
+        <!-- 3. UJI SCROLL -->
+        <section class="bg-gray-800 rounded-xl p-4 shadow-lg border border-gray-700">
+            <h2 class="text-lg font-semibold mb-3 flex items-center">
+                <span class="bg-purple-600 w-2 h-6 mr-2 rounded"></span> 3. Uji Scroll
+            </h2>
+            
+            <div class="mb-2 flex justify-between items-center">
+                <span id="scrollStatus" class="text-xs text-purple-300 bg-purple-900 px-2 py-1 rounded transition-opacity opacity-0">Sedang Menggulir...</span>
+                <span id="scrollPercent" class="text-xs font-mono text-gray-400">0%</span>
+            </div>
+
+            <!-- Scroll Container -->
+            <div id="scrollContainer" class="h-40 overflow-y-auto bg-gray-900 rounded-lg p-3 border border-gray-700 text-sm text-gray-300 leading-relaxed transition-all duration-300">
+                <p class="mb-2 text-purple-400 font-bold">Mulai Scroll ke bawah...</p>
+                <p class="mb-4">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Aplikasi Anda harus mendeteksi pergerakan ini.</p>
+                <p class="mb-4">Terus gulir ke bawah. Kami memantau event 'scroll' secara real-time.</p>
+                <p class="mb-4">Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium.</p>
+                <p class="mb-4">Scroll lagi... Interaksi pengguna yang lancar sangat penting.</p>
+                <p class="mb-4">Hampir sampai di tengah...</p>
+                <p class="mb-4">Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit.</p>
+                <p class="mb-4">Terus... Terus...</p>
+                <p class="mb-4">Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore.</p>
+                <p class="mb-4">Sedikit lagi sampai bawah...</p>
+                <p class="text-purple-400 font-bold">Anda telah mencapai dasar!</p>
+            </div>
+        </section>
+
+        <!-- REAL TIME LOG -->
+        <section class="w-full">
+            <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Event Log</h3>
+            <div id="consoleLog" class="w-full h-32 bg-black rounded-lg p-2 text-xs font-mono text-green-500 overflow-y-auto border border-gray-800">
+                <div class="text-gray-600">>> Siap merekam event...</div>
+            </div>
+            <button onclick="clearLog()" class="text-xs text-red-400 hover:text-red-300 mt-1 underline">Hapus Log</button>
+        </section>
+
+    </main>
+
+    <script>
+        // --- Utilities ---
+        const log = (msg, type = 'info') => {
+            const consoleDiv = document.getElementById('consoleLog');
+            const entry = document.createElement('div');
+            const time = new Date().toLocaleTimeString('id-ID', { hour12: false });
+            
+            let color = 'text-green-500';
+            if (type === 'click') color = 'text-blue-400';
+            if (type === 'volume') color = 'text-green-400';
+            if (type === 'scroll') color = 'text-purple-400';
+
+            entry.className = `mb-1 ${color}`;
+            entry.innerHTML = `<span class="text-gray-600 mr-1">[${time}]</span> ${msg}`;
+            consoleDiv.appendChild(entry);
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        };
+
+        const clearLog = () => {
+            document.getElementById('consoleLog').innerHTML = '<div class="text-gray-600">>> Log dibersihkan.</div>';
+        };
+
+        // --- 1. Click Logic ---
+        const clickArea = document.getElementById('clickArea');
+        const clickStatus = document.getElementById('clickStatus');
+
+        clickArea.addEventListener('click', function(e) {
+            // Log
+            log('Click/Tap terdeteksi pada tombol utama', 'click');
+            clickStatus.textContent = "Berhasil diklik!";
+            clickStatus.classList.add('text-blue-400');
+            
+            setTimeout(() => {
+                clickStatus.textContent = "Menunggu input...";
+                clickStatus.classList.remove('text-blue-400');
+            }, 1000);
+
+            // Ripple Effect
+            const circle = document.createElement('span');
+            const diameter = Math.max(clickArea.clientWidth, clickArea.clientHeight);
+            const radius = diameter / 2;
+
+            // Posisi relatif terhadap tombol
+            const rect = clickArea.getBoundingClientRect();
+            circle.style.width = circle.style.height = `${diameter}px`;
+            circle.style.left = `${e.clientX - rect.left - radius}px`;
+            circle.style.top = `${e.clientY - rect.top - radius}px`;
+            circle.classList.add('ripple');
+
+            // Hapus ripple lama jika ada elemen riplle menumpuk (opsional)
+            const ripple = clickArea.getElementsByClassName('ripple')[0];
+            if (ripple) {
+                ripple.remove();
+            }
+
+            clickArea.appendChild(circle);
+        });
+
+        // --- 2. Volume Logic ---
+        let currentVolume = 50;
+        const volumeBar = document.getElementById('volumeBar');
+        const volPercent = document.getElementById('volPercent');
+
+        const updateVolumeUI = (newVol, source) => {
+            // Clamp value 0-100
+            currentVolume = Math.min(100, Math.max(0, newVol));
+            
+            // Visual Update
+            volumeBar.style.width = `${currentVolume}%`;
+            volPercent.textContent = `${currentVolume}%`;
+            
+            // Effect
+            volumeBar.parentElement.classList.remove('volume-pop');
+            void volumeBar.parentElement.offsetWidth; // trigger reflow
+            volumeBar.parentElement.classList.add('volume-pop');
+
+            // Color change based on level
+            if(currentVolume > 80) volumeBar.className = "h-full bg-red-500 transition-all duration-100";
+            else if(currentVolume < 20) volumeBar.className = "h-full bg-yellow-500 transition-all duration-100";
+            else volumeBar.className = "h-full bg-green-500 transition-all duration-100";
+
+            log(`Volume ${source}: Level ${currentVolume}%`, 'volume');
+        };
+
+        // Keyboard Listener (untuk Hardware Volume Keys jika didukung browser/OS, atau tombol Panah)
+        window.addEventListener('keydown', (e) => {
+            // Beberapa browser/OS mengirimkan key "VolumeUp" atau "VolumeDown"
+            // Kami juga mendukung ArrowUp/ArrowDown sebagai simulasi
+            if (e.key === 'VolumeUp' || e.key === 'ArrowUp') {
+                updateVolumeUI(currentVolume + 10, 'UP (Key)');
+                e.preventDefault(); // Mencegah scroll halaman jika pakai panah
+            } else if (e.key === 'VolumeDown' || e.key === 'ArrowDown') {
+                updateVolumeUI(currentVolume - 10, 'DOWN (Key)');
+                e.preventDefault();
+            } else {
+                // Log tombol lain untuk debugging
+                // log(`Keydown detected: ${e.key}`, 'info');
+            }
+        });
+
+        // Simulasi Tombol Layar
+        window.simulateVolume = (dir) => {
+            if(dir === 'up') updateVolumeUI(currentVolume + 10, 'UP (Btn)');
+            else updateVolumeUI(currentVolume - 10, 'DOWN (Btn)');
+        };
+
+        // --- 3. Scroll Logic ---
+        const scrollContainer = document.getElementById('scrollContainer');
+        const scrollStatus = document.getElementById('scrollStatus');
+        const scrollPercentDisplay = document.getElementById('scrollPercent');
+        let scrollTimeout;
+
+        scrollContainer.addEventListener('scroll', () => {
+            // Hitung persentase
+            const scrollTop = scrollContainer.scrollTop;
+            const scrollHeight = scrollContainer.scrollHeight - scrollContainer.clientHeight;
+            const percent = Math.round((scrollTop / scrollHeight) * 100);
+
+            // Update UI
+            scrollPercentDisplay.textContent = `${percent}%`;
+            
+            // Visual Feedback pada container
+            scrollContainer.classList.add('scroll-active');
+            
+            // Show status badge
+            scrollStatus.style.opacity = '1';
+            
+            // Debounce log (supaya tidak spam log console)
+            clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(() => {
+                log(`Scroll berhenti di posisi ${percent}%`, 'scroll');
+                scrollContainer.classList.remove('scroll-active');
+                scrollStatus.style.opacity = '0';
+            }, 500); // Set timeout
+        });
+
+    </script>
+</body>
+</html>
