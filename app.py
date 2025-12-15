@@ -58,18 +58,16 @@ class HandTrackingController:
         self.click_dist_thresh = 40  # Jarak sentuh untuk Klik
         self.vol_up_thresh = 80      # Jarak rentang Volume Up
         self.vol_down_thresh = 30    # Jarak cubit Volume Down
-        self.fingers_touch_thresh = 45 # Jarak Telunjuk & Tengah (Scroll Mode)
+        
+        # Kecepatan Scroll (Static Gesture)
+        self.scroll_speed_up = 50    
+        self.scroll_speed_down = -50 
         
         # Timers
         self.last_action_time = 0
         self.click_cooldown = 0.5
         self.vol_cooldown = 0.1
         self.prev_time = 0
-        
-        # Scroll Logic Variables
-        self.scroll_anchor_y = 0     # Titik awal scroll
-        self.scroll_speed_factor = 3 # Pengali kecepatan scroll (makin besar makin ngebut)
-        self.scroll_dead_zone = 20   # Area tengah agar scroll tidak sensitif getaran
         
         # Indices Landmark
         self.WRIST = 0
@@ -100,40 +98,38 @@ class HandTrackingController:
         # Cek jempol tertutup (Ujung jempol dekat ke pangkal jari telunjuk/tengah)
         thumb_tip = landmarks[self.THUMB_TIP]
         pinky_mcp = landmarks[self.PINKY_MCP]
-        # Logika simpel: X jempol melewati X telunjuk (tergantung tangan kiri/kanan)
-        # Atau cek jarak ke jari kelingking
         return self.calculate_distance((thumb_tip.x, thumb_tip.y), (pinky_mcp.x, pinky_mcp.y)) < 0.2
 
     def get_gesture_mode(self, landmarks, img_w, img_h):
         """Menentukan Mode Operasi"""
         # Cek status jari (Buka/Tutup)
-        thumb_folded = self.is_thumb_folded(landmarks) # Opsional, kadang jempol susah dideteksi tutup
+        thumb_folded = self.is_thumb_folded(landmarks) 
         index_folded = self.is_finger_folded(landmarks, self.INDEX_TIP, self.INDEX_MCP)
         middle_folded = self.is_finger_folded(landmarks, self.MIDDLE_TIP, self.MIDDLE_MCP)
         ring_folded = self.is_finger_folded(landmarks, self.RING_TIP, self.RING_MCP)
         pinky_folded = self.is_finger_folded(landmarks, self.PINKY_TIP, self.PINKY_MCP)
 
-        # Koordinat Pixel untuk cek jarak
-        ix, iy = int(landmarks[self.INDEX_TIP].x * img_w), int(landmarks[self.INDEX_TIP].y * img_h)
-        mx, my = int(landmarks[self.MIDDLE_TIP].x * img_w), int(landmarks[self.MIDDLE_TIP].y * img_h)
-        dist_index_middle = self.calculate_distance((ix, iy), (mx, my))
-
-        # 1. SCROLL MODE:
-        # Syarat: Telunjuk & Tengah BUKA & RAPAT, Sisanya (Manis, Kelingking) TUTUP.
-        # Jempol sebaiknya tutup atau netral.
-        if (not index_folded) and (not middle_folded) and ring_folded and pinky_folded:
-            if dist_index_middle < self.fingers_touch_thresh: # Dua jari rapat
-                return "SCROLL"
-        
-        # 2. VOLUME MODE:
-        # Syarat: Tengah, Manis, Kelingking TUTUP. Telunjuk & Jempol BUKA.
-        if (not index_folded) and middle_folded and ring_folded and pinky_folded:
-            return "VOLUME"
-            
-        # 3. MOUSE MODE:
+        # 1. MOUSE MODE:
         # Syarat: Kelingking BUKA (Syarat utama user)
         if not pinky_folded:
             return "MOUSE"
+
+        # --- UPDATE LOGIKA SCROLL SESUAI PERMINTAAN ---
+        
+        # 2. SCROLL DOWN (3 Jari Angkat: Telunjuk, Tengah, Manis)
+        # Syarat: Telunjuk, Tengah, Manis BUKA. Jempol, Kelingking TUTUP.
+        if (not index_folded) and (not middle_folded) and (not ring_folded) and pinky_folded and thumb_folded:
+            return "SCROLL_DOWN"
+
+        # 3. SCROLL UP (2 Jari Angkat: Telunjuk, Tengah)
+        # Syarat: Telunjuk, Tengah BUKA. Jempol, Manis, Kelingking TUTUP.
+        if (not index_folded) and (not middle_folded) and ring_folded and pinky_folded and thumb_folded:
+            return "SCROLL_UP"
+        
+        # 4. VOLUME MODE:
+        # Syarat: Tengah, Manis, Kelingking TUTUP. Telunjuk BUKA.
+        if (not index_folded) and middle_folded and ring_folded and pinky_folded:
+            return "VOLUME"
             
         return "UNKNOWN"
 
@@ -169,48 +165,33 @@ class HandTrackingController:
         mode = self.get_gesture_mode(landmarks, img_w, img_h)
         curr_time = time.time()
 
-        # ================= LOGIKA MODE =================
+        # ================= LOGIKA MODE DIUBAH =================
         
-        # --- 1. SCROLL MODE (Dua Jari Rapat) ---
-        if mode == "SCROLL":
-            # Tampilkan Indikator
-            cv2.putText(img, "MODE: SCROLL", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2)
-            # Visualisasi Dua Jari
+        # --- 1. SCROLL DOWN (3 Jari Angkat) ---
+        if mode == "SCROLL_DOWN":
+            cv2.putText(img, "SCROLL DOWN (3 Fingers)", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 165, 255), 2)
+            
+            # Visualisasi
+            cv2.circle(img, (mx, my), 15, (0, 165, 255), cv2.FILLED)
+            cv2.putText(img, "DOWN", (mx, my + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
+            
+            # Eksekusi Scroll
+            pyautogui.scroll(self.scroll_speed_down)
+
+        # --- 2. SCROLL UP (2 Jari Angkat) ---
+        elif mode == "SCROLL_UP":
+            cv2.putText(img, "SCROLL UP (2 Fingers)", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+            
+            # Visualisasi
             cx, cy = (ix + mx) // 2, (iy + my) // 2
-            cv2.circle(img, (cx, cy), 15, (255, 255, 0), cv2.FILLED)
-            cv2.line(img, (ix, iy), (mx, my), (255, 255, 0), 2)
+            cv2.circle(img, (cx, cy), 15, (0, 255, 255), cv2.FILLED)
+            cv2.putText(img, "UP", (cx, cy - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
             
-            # Set Anchor (Titik Tengah) jika baru masuk mode
-            if self.scroll_anchor_y == 0:
-                self.scroll_anchor_y = cy
-
-            # Hitung jarak jari dari Anchor
-            delta_y = cy - self.scroll_anchor_y
+            # Eksekusi Scroll
+            pyautogui.scroll(self.scroll_speed_up)
             
-            # Visualisasi Garis Anchor ke Jari
-            cv2.line(img, (cx, self.scroll_anchor_y), (cx, cy), (100, 100, 100), 2)
-            cv2.circle(img, (cx, self.scroll_anchor_y), 5, (0, 0, 0), cv2.FILLED) # Titik Anchor
-
-            # Logika Smooth Scroll (Velocity Based)
-            if abs(delta_y) > self.scroll_dead_zone:
-                # Arah scroll: delta_y Positif (Tangan Turun) -> Scroll Bawah
-                # PyAutoGUI: scroll negatif = bawah, positif = atas
-                
-                scroll_amount = int(delta_y / 2) # Sesuaikan pembagi untuk sensitivitas
-                
-                # Invert logic: Tangan ke Atas (y kecil, delta negatif) -> Scroll Up (+)
-                # Tangan ke Bawah (y besar, delta positif) -> Scroll Down (-)
-                pyautogui.scroll(-scroll_amount)
-                
-                direction = "DOWN" if delta_y > 0 else "UP"
-                cv2.putText(img, f"SCROLL {direction}", (cx + 20, cy), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
-            
-            # JANGAN reset anchor_y agar scroll terasa seperti joystick (continuous)
-            # User harus mengembalikan tangan ke posisi awal (anchor) untuk stop scroll
-
-        # --- 2. VOLUME MODE (Pistol Pose) ---
+        # --- 3. VOLUME MODE (Pistol Pose) ---
         elif mode == "VOLUME":
-            self.scroll_anchor_y = 0 # Reset scroll
             cv2.putText(img, "MODE: VOLUME", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
             
             vol_dist = self.calculate_distance((tx, ty), (ix, iy))
@@ -229,9 +210,8 @@ class HandTrackingController:
                     cv2.circle(img, (cx, cy), 15, (255, 0, 0), cv2.FILLED)
                     self.last_action_time = curr_time
 
-        # --- 3. MOUSE MODE (Kelingking Terbuka) ---
+        # --- 4. MOUSE MODE (Kelingking Terbuka) ---
         elif mode == "MOUSE":
-            self.scroll_anchor_y = 0 # Reset scroll
             cv2.putText(img, "MODE: MOUSE", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
             
             # Gerak Mouse (Telunjuk)
@@ -260,17 +240,14 @@ class HandTrackingController:
                 if (curr_time - self.last_action_time) > self.click_cooldown:
                     pyautogui.rightClick()
                     self.last_action_time = curr_time
-        
-        else:
-            # Tidak ada mode yang cocok (Reset Anchor)
-            self.scroll_anchor_y = 0
 
     def run(self):
         print("\n=== SYSTEM STARTED ===")
         print("Camera Index:", CAMERA_TARGET)
         print("1. Mouse (Kelingking Buka): Klik Kiri(Jempol+Telunjuk), Kanan(Jempol+Tengah)")
-        print("2. Scroll (Telunjuk & Tengah Rapat + Sisa Tutup): Gerak Atas/Bawah")
-        print("3. Volume (Pistol Pose): Rentang Jempol-Telunjuk")
+        print("2. Scroll UP: 2 Jari Angkat (Telunjuk + Tengah). Jempol, Manis, Kelingking Tutup.")
+        print("3. Scroll DOWN: 3 Jari Angkat (Telunjuk + Tengah + Manis). Jempol, Kelingking Tutup.")
+        print("4. Volume (Pistol Pose): Rentang Jempol-Telunjuk")
         print("Tekan 'q' untuk keluar.")
         
         while True:
@@ -282,7 +259,7 @@ class HandTrackingController:
             
             # Area Mouse
             cv2.rectangle(img, (self.frame_reduction, self.frame_reduction), 
-                         (img_w - self.frame_reduction, img_h - self.frame_reduction), (255, 0, 255), 1)
+                          (img_w - self.frame_reduction, img_h - self.frame_reduction), (255, 0, 255), 1)
             
             img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             results = self.hands.process(img_rgb)
@@ -291,8 +268,6 @@ class HandTrackingController:
                 for hand_landmarks in results.multi_hand_landmarks:
                     self.mp_draw.draw_landmarks(img, hand_landmarks, self.mp_hands.HAND_CONNECTIONS)
                     self.process_hand(hand_landmarks.landmark, img_h, img_w, img)
-            else:
-                self.scroll_anchor_y = 0 # Reset jika tangan hilang
             
             # FPS Calculation
             c_time = time.time()
