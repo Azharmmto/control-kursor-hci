@@ -17,7 +17,7 @@ pyautogui.PAUSE = 0
 pyautogui.FAILSAFE = False
 
 class HandTrackingController:
-    def __init__(self, camera_index=2):
+    def __init__(self, camera_index=1):
         # --- SETUP KAMERA ---
         print(f"Mencoba membuka kamera index {camera_index}...")
         self.cap = cv2.VideoCapture(camera_index)
@@ -311,5 +311,5 @@ class HandTrackingController:
         cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    CAMERA_TARGET = 2  
+    CAMERA_TARGET = 1  
     HandTrackingController(camera_index=CAMERA_TARGET).run()
