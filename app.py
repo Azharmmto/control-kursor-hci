@@ -1,19 +1,3 @@
-"""
-Hand Tracking Controller (CUSTOM SCROLL GESTURE)
-Fitur:
-1. MOUSE (Kelingking Buka):
-   - Gerak: Telunjuk
-   - Klik Kiri: Jempol + Telunjuk
-   - Klik Kanan: Jempol + Tengah
-2. VOLUME (Pistol Pose):
-   - Jari Tengah, Manis, Kelingking Tutup -> Atur jarak Jempol-Telunjuk
-3. SCROLL (Dua Jari Rapat):
-   - Syarat: Telunjuk & Tengah Rapat, Sisanya (Jempol, Manis, Kelingking) Tutup
-   - Gerak: Naik/Turun untuk Scroll Smooth
-
-Author: Senior Python CV Engineer
-"""
-
 import os
 import warnings
 
