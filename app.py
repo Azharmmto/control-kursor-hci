@@ -55,9 +55,9 @@ class HandTrackingController:
         self.prev_x, self.prev_y = 0, 0
         
         # Thresholds (Pixel)
-        self.click_dist_thresh = 40  # Jarak sentuh untuk Klik
-        self.vol_up_thresh = 80      # Jarak rentang Volume Up
-        self.vol_down_thresh = 30    # Jarak cubit Volume Down
+        self.click_dist_thresh = 40  # Jarak sentuh untuk Klik (px)
+        self.vol_up_thresh = 80      # Jarak rentang Volume Up (px)
+        self.vol_down_thresh = 30    # Jarak cubit Volume Down (px)
         
         # Kecepatan Scroll (Static Gesture)
         self.scroll_speed_up = 50    
@@ -70,7 +70,7 @@ class HandTrackingController:
         self.prev_time = 0
         
         # Indices Landmark
-        self.WRIST = 0
+        self.WRIqST = 0
         self.THUMB_TIP = 4
         self.THUMB_IP = 3   # Sendi Jempol
         self.INDEX_TIP = 8
